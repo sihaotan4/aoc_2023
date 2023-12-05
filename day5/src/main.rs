@@ -12,29 +12,38 @@ fn main() {
     let input = read_file("input/data.txt").unwrap();
     let (_, (seeds, almanac)) = parse_input(&input).unwrap();
 
-    // process seeds into ranges
-    let seed_ranges = seed_ranges(seeds);
-    
-    let min_start = seed_ranges.iter().map(|range| range.start).min().unwrap();
-    let max_end = seed_ranges.iter().map(|range| range.end).max().unwrap();
-    let encompassing_range = min_start..max_end;
+    // process seeds into a single range
+    let seed_ranges = encompassing_range(seed_ranges(seeds));
 
-    let num_numbers = encompassing_range.end - encompassing_range.start;
-    println!("Number of numbers in the range: {}", num_numbers);
+    // get all location values to search
+    let location_ranges = almanac.last()
+        .unwrap()
+        .value
+        .iter()
+        .map(|x| {
+            x.destination_range.clone()
+        })
+        .collect::<Vec<Range<u64>>>();
 
-    //iterate through each seed and trace through the maps
-    let mut result: Vec<u64> = Vec::new();
-    for seed in encompassing_range {
-        let mut traverser = seed.clone();
+    let location_ranges = encompassing_range(location_ranges);
+
+    // backwards traversal until we hit
+    almanac.clone().reverse();
+    for i in location_ranges {
+        let mut check_value = i.clone();
 
         for map in &almanac {
-            traverser = map.map(traverser);
+            check_value = map.reverse(check_value);
         }
-
-        result.push(traverser);
+        
+        if seed_ranges.contains(&check_value) {
+            println!("{}", i);
+            break
+        }
     }
 
-    println!("{}", result.iter().min().unwrap());
+
+
 }
 
 fn seed_ranges(v: Vec<u64>) -> Vec<Range<u64>> {
@@ -44,7 +53,13 @@ fn seed_ranges(v: Vec<u64>) -> Vec<Range<u64>> {
         .collect::<Vec<Range<u64>>>()
 }
 
-#[derive(Debug)]
+fn encompassing_range(v: Vec<Range<u64>>) -> Range<u64> {
+    let min_start = v.iter().map(|range| range.start).min().unwrap();
+    let max_end = v.iter().map(|range| range.end).max().unwrap();
+    min_start..max_end
+}
+
+#[derive(Debug, Clone)]
 struct ListMapping {
     value: Vec<Mapping>,
 }
@@ -87,7 +102,7 @@ impl ListMapping {
 
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Mapping {
     source_range: Range<u64>,
     destination_range: Range<u64>,
