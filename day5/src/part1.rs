@@ -1,30 +1,21 @@
+use std::{fs, ops::Range};
 use nom::{
+    character::complete::{space1, digit1,line_ending, multispace1},
     bytes::complete::{tag, take_until, take_while},
-    character::complete::{digit1, line_ending, multispace1, space1},
-    combinator::map_res,
-    multi::separated_list1,
     sequence::terminated,
+    combinator::map_res,
+    multi::{separated_list1},
     IResult,
 };
-use std::{fs, ops::Range};
 
 fn main() {
     let input = read_file("input/data.txt").unwrap();
     let (_, (seeds, almanac)) = parse_input(&input).unwrap();
 
-    // process seeds into ranges
-    let seed_ranges = seed_ranges(seeds);
-    
-    let min_start = seed_ranges.iter().map(|range| range.start).min().unwrap();
-    let max_end = seed_ranges.iter().map(|range| range.end).max().unwrap();
-    let encompassing_range = min_start..max_end;
-
-    let num_numbers = encompassing_range.end - encompassing_range.start;
-    println!("Number of numbers in the range: {}", num_numbers);
-
     //iterate through each seed and trace through the maps
-    let mut result: Vec<u64> = Vec::new();
-    for seed in encompassing_range {
+    let mut result:Vec<u64> = Vec::new();
+
+    for seed in seeds {
         let mut traverser = seed.clone();
 
         for map in &almanac {
@@ -35,13 +26,7 @@ fn main() {
     }
 
     println!("{}", result.iter().min().unwrap());
-}
 
-fn seed_ranges(v: Vec<u64>) -> Vec<Range<u64>> {
-    v.chunks_exact(2)
-        .into_iter()
-        .map(|x| x[0]..(x[0] + x[1]))
-        .collect::<Vec<Range<u64>>>()
 }
 
 #[derive(Debug)]
@@ -53,7 +38,9 @@ impl ListMapping {
     fn from(v: Vec<Vec<u64>>) -> ListMapping {
         let value = v
             .into_iter()
-            .map(|v| Mapping::from(v))
+            .map(|v| {
+                Mapping::from(v)
+            })
             .collect::<Vec<Mapping>>();
 
         ListMapping { value }
@@ -65,26 +52,11 @@ impl ListMapping {
 
         for mapping in &self.value {
             if mapping.source_range.contains(&seed) {
-                mapped_value =
-                    mapping.destination_range.start + (&seed - mapping.source_range.start)
+                mapped_value = mapping.destination_range.start + (&seed - mapping.source_range.start)
             }
         }
         mapped_value
     }
-
-    fn reverse(&self, destination: u64) -> u64 {
-        // set default to original destination value
-        let mut reversed_value = destination;
-    
-        for mapping in &self.value {
-            if mapping.destination_range.contains(&destination) {
-                reversed_value =
-                    mapping.source_range.start + (&destination - mapping.destination_range.start)
-            }
-        }
-        reversed_value
-    }
-
 }
 
 #[derive(Debug)]
@@ -97,8 +69,8 @@ impl Mapping {
     fn from(v: Vec<u64>) -> Mapping {
         if v.len() == 3 {
             Mapping {
-                source_range: v[1]..(v[1] + v[2]),
-                destination_range: v[0]..(v[0] + v[2]),
+                source_range: v[1]..(v[1]+v[2]),
+                destination_range: v[0]..(v[0]+v[2]),
             }
         } else {
             unimplemented!();
@@ -115,9 +87,10 @@ fn parse_seeds(s: &str) -> IResult<&str, Vec<u64>> {
     let (input, v) = separated_list1(space1, digit1)(input)?;
     let (input, _) = line_ending(input)?;
 
-    let v: Vec<u64> = v
-        .into_iter()
-        .map(|num| num.parse::<u64>().unwrap())
+    let v: Vec<u64> = v.into_iter()
+        .map(|num|{
+            num.parse::<u64>().unwrap()
+        })
         .collect();
 
     Ok((input, v))
@@ -127,10 +100,7 @@ fn parse_map(s: &str) -> IResult<&str, Vec<Vec<u64>>> {
     let (input, _) = terminated(take_until("\n"), line_ending)(s)?;
 
     let parse_u64 = |input: &str| input.parse::<u64>();
-    let parse_line = separated_list1(
-        space1,
-        map_res(take_while(|c: char| c.is_digit(10)), parse_u64),
-    );
+    let parse_line = separated_list1(space1, map_res(take_while(|c: char| c.is_digit(10)), parse_u64));
 
     separated_list1(terminated(take_until("\n"), line_ending), parse_line)(input)
 }
@@ -139,6 +109,7 @@ fn parse_input(s: &str) -> IResult<&str, (Vec<u64>, Vec<ListMapping>)> {
     let (input, seeds) = parse_seeds(s)?;
     let (input, _) = terminated(take_until("\n"), line_ending)(input)?;
 
+    
     let (input, v) = separated_list1(multispace1, parse_map)(input)?;
 
     let mut result_vec: Vec<ListMapping> = Vec::new();
@@ -209,4 +180,5 @@ mod tests {
 
         assert_eq!(result, expected_output);
     }
+
 }
