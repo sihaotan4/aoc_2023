@@ -11,39 +11,55 @@ use std::{fs, ops::Range};
 fn main() {
     let input = read_file("input/data.txt").unwrap();
     let (_, (seeds, almanac)) = parse_input(&input).unwrap();
+    
+    let seed_ranges = simplify_overlaps(seed_ranges(seeds));
 
-    // process seeds into a single range
-    let seed_ranges = encompassing_range(seed_ranges(seeds));
+    dbg!(seed_ranges.clone());
 
-    // get all location values to search
-    let location_ranges = almanac.last()
-        .unwrap()
-        .value
-        .iter()
-        .map(|x| {
-            x.destination_range.clone()
-        })
-        .collect::<Vec<Range<u64>>>();
+    let mut min_location: u64 = u64::MAX;
+    let mut prev_min_location = u64::MAX;
 
-    let location_ranges = encompassing_range(location_ranges);
-
-    // backwards traversal until we hit
-    almanac.clone().reverse();
-    for i in location_ranges {
-        let mut check_value = i.clone();
+    for seed in seed_ranges.iter().flat_map(|range| range.start..range.end).collect::<Vec<u64>>() {
+        let mut traverser = seed;
 
         for map in &almanac {
-            check_value = map.reverse(check_value);
+            traverser = map.map(traverser);
         }
+
+        min_location = min_location.min(traverser);
         
-        if seed_ranges.contains(&check_value) {
-            println!("{}", i);
-            break
+        if min_location < prev_min_location {
+            dbg!(min_location.clone());
+            prev_min_location = min_location;
         }
+
     }
 
+    // // process this one range at a time
+    // for range in seed_ranges {
+    //     let mut traverser: Vec<Range<u64>> = vec![range.clone()];
 
+    //     for list_mapping in &almanac {
+    //         let mut output: Vec<Range<u64>> = Vec::new(); 
+            
+    //         for range in traverser.iter() {
+    //             output.extend(list_mapping.map_range(&range));
+    //         }
+    
+    //         // update the whole range after going through a map
+    //         traverser = output;
 
+    //         dbg!(traverser.clone());
+    //     }
+
+    //     dbg!(min_start(traverser.clone()));
+
+    //     min_location = min_location.min(min_start(traverser));
+
+    //     println!("{}", format!("{:?} done", range));
+    // } 
+
+    println!("{}", min_location);
 }
 
 fn seed_ranges(v: Vec<u64>) -> Vec<Range<u64>> {
@@ -53,10 +69,32 @@ fn seed_ranges(v: Vec<u64>) -> Vec<Range<u64>> {
         .collect::<Vec<Range<u64>>>()
 }
 
-fn encompassing_range(v: Vec<Range<u64>>) -> Range<u64> {
-    let min_start = v.iter().map(|range| range.start).min().unwrap();
-    let max_end = v.iter().map(|range| range.end).max().unwrap();
-    min_start..max_end
+fn min_start(v: Vec<Range<u64>>) -> u64 {
+    v.iter().map(|range| range.start).min().unwrap()
+}
+
+fn simplify_overlaps(mut v: Vec<Range<u64>>) -> Vec<Range<u64>> {
+    v.sort_by(|a, b| a.start.cmp(&b.start));
+
+    let mut result = Vec::new();
+
+    let mut current_range = v[0].clone();
+
+    for range in v.into_iter().skip(1) {
+        if range.start <= current_range.end {
+            // Ranges overlap, so merge them
+            current_range.end = current_range.end.max(range.end);
+        } else {
+            // Ranges don't overlap, so add the current range to the result and start a new one
+            result.push(current_range);
+            current_range = range;
+        }
+    }
+
+    // Add the last range to the result
+    result.push(current_range);
+
+    result
 }
 
 #[derive(Debug, Clone)]
@@ -86,18 +124,16 @@ impl ListMapping {
         }
         mapped_value
     }
+    fn map_range(&self, r: &Range<u64>) -> Vec<Range<u64>> {
+        let mut output: Vec<Range<u64>> = Vec::new();
 
-    fn reverse(&self, destination: u64) -> u64 {
-        // set default to original destination value
-        let mut reversed_value = destination;
-    
-        for mapping in &self.value {
-            if mapping.destination_range.contains(&destination) {
-                reversed_value =
-                    mapping.source_range.start + (&destination - mapping.destination_range.start)
-            }
+        for map in &self.value {
+            output.extend(map.map_range(r));
         }
-        reversed_value
+
+        output.sort_by(|a, b| a.start.cmp(&b.start));
+        output.dedup();
+        simplify_overlaps(output)
     }
 
 }
@@ -117,6 +153,47 @@ impl Mapping {
             }
         } else {
             unimplemented!();
+        }
+    }
+
+    fn map(&self, seed: u64) -> u64 {
+        if self.source_range.contains(&seed) {
+            self.destination_range.start + (seed - self.source_range.start)
+        } else {
+            seed
+        }
+    }
+
+    fn map_range(&self, r: &Range<u64>) -> Vec<Range<u64>> {
+        let (i_start, i_end, j_start, j_end) = (
+            r.start,
+            r.end,
+            self.source_range.start,
+            self.source_range.end,
+        );
+    
+        if self.source_range.contains(&i_start) && self.source_range.contains(&i_end) {
+            vec![self.map(i_start)..self.map(i_end)]
+        } else if i_end <= j_start || i_start >= j_end {
+            vec![r.clone()]
+        } else {
+            let overlap_start = i_start.max(j_start);
+            let overlap_end = i_end.min(j_end);
+            let mut result = Vec::new();
+    
+            if i_start < overlap_start {
+                result.push(i_start..overlap_start);
+            }
+    
+            result.push(self.map(overlap_start)..self.map(overlap_end));
+    
+            if i_end > overlap_end {
+                result.push(overlap_end..i_end);
+            }
+    
+            result.sort_by(|a, b| a.start.cmp(&b.start));
+            result.dedup();
+            simplify_overlaps(result)
         }
     }
 }
