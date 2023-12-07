@@ -1,6 +1,6 @@
 fn main() {
-    let time_data:Vec<u64> = vec![48938466];
-    let dist_data:Vec<u64> = vec![261119210191063];
+    let time_data:Vec<u32> = vec![48, 93, 84, 66];
+    let dist_data:Vec<u32> = vec![261, 1192, 1019, 1063];
 
     let races = std::iter::zip(time_data, dist_data)
         .map(|(t,d)| {
@@ -8,7 +8,7 @@ fn main() {
         })
         .collect::<Vec<Race>>();
 
-    let result: u64 = races
+    let result: u32 = races
         .iter()
         .map(|race| race.num_beat_record())
         .product();
@@ -18,17 +18,17 @@ fn main() {
 }
 
 struct Race {
-    time: u64,
-    dist: u64,
+    time: u32,
+    dist: u32,
 }
 
 impl Race {
-    fn init(t:u64, d:u64) -> Race {
+    fn init(t:u32, d:u32) -> Race {
         Race { time: t, dist: d }
     }
 
-    fn all_distances(&self) -> Vec<u64> {
-        let mut out: Vec<u64> = Vec::new();
+    fn all_distances(&self) -> Vec<u32> {
+        let mut out: Vec<u32> = Vec::new();
 
         for i in 0..=self.time {
             out.push(i*self.time - (i*i))
@@ -36,12 +36,12 @@ impl Race {
         out
     }
 
-    fn num_beat_record(&self) -> u64 {
+    fn num_beat_record(&self) -> u32 {
         self
             .all_distances()
             .into_iter()
             .filter(|x| x > &self.dist)
-            .count() as u64
+            .count() as u32
     }
 }
 
